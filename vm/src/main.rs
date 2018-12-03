@@ -16,7 +16,10 @@ impl VM {
             return *n;
         }
 
-        *self.registers.get(n).unwrap()
+        match self.registers.get(n) {
+            Some(n) => *n,
+            None => 0,
+        }
     }
 
     fn interpret(&mut self, binary: &[u8]) {
@@ -29,6 +32,7 @@ impl VM {
                 ((low_byte as u16) << 0) | ((high_byte as u16) << 8)
             }).collect();
 
+        // Start at address 0
         let mut pc = 0;
 
         loop {
@@ -37,58 +41,60 @@ impl VM {
             match op {
                 // HALT
                 0 => process::exit(0),
-                // // SET
-                // 1 => {
-                //     let a = program[pc + 1];
-                //     let b = program[pc + 2];
-                //     let value = self.value(&b);
-                //     self.registers.insert(a, value);
-                //     pc += 3;
-                // }
-                // // PUSH
-                // 2 => {
-                //     let a = program[pc + 1];
-                //     let value = self.value(&a);
-                //     self.stack.push(value);
-                //     pc += 2
-                // }
-                // // POP
-                // 3 => {
-                //     let a = program[pc + 1];
-                //     let value = self.stack.pop().unwrap();
-                //     self.registers.insert(a, value);
-                //     pc += 2
-                // }
-                // // EQ
-                // 4 => {
-                //     let a = program[pc + 1];
-                //     let b = program[pc + 2];
-                //     let c = program[pc + 3];
+                // SET
+                1 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let value = self.value(&b);
 
-                //     let value = if self.value(&b) == self.value(&c) {
-                //         1
-                //     } else {
-                //         0
-                //     };
+                    self.registers.insert(a, value);
+                    pc += 3;
+                }
+                // PUSH
+                2 => {
+                    let a = program[pc + 1];
+                    let value = self.value(&a);
+                    self.stack.push(value);
+                    pc += 2
+                }
+                // POP
+                3 => {
+                    let a = program[pc + 1];
+                    let value = self.stack.pop().unwrap();
 
-                //     self.registers.insert(a, value);
-                //     pc += 4
-                // }
-                // // GT
-                // 5 => {
-                //     let a = program[pc + 1];
-                //     let b = program[pc + 2];
-                //     let c = program[pc + 3];
+                    self.registers.insert(a, value);
+                    pc += 2
+                }
+                // EQ
+                4 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let c = program[pc + 3];
 
-                //     let value = if self.value(&b) > self.value(&c) {
-                //         1
-                //     } else {
-                //         0
-                //     };
+                    let value = if self.value(&b) == self.value(&c) {
+                        1
+                    } else {
+                        0
+                    };
 
-                //     self.registers.insert(a, value);
-                //     pc += 4
-                // }
+                    self.registers.insert(a, value);
+                    pc += 4
+                }
+                // GT
+                5 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let c = program[pc + 3];
+
+                    let value = if self.value(&b) > self.value(&c) {
+                        1
+                    } else {
+                        0
+                    };
+
+                    self.registers.insert(a, value);
+                    pc += 4
+                }
                 // JMP
                 6 => {
                     let a = program[pc + 1];
@@ -116,6 +122,19 @@ impl VM {
                         pc += 3;
                     }
                 }
+                // ADD
+                9 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let c = program[pc + 3];
+
+                    let b_value = self.value(&b) as u32;
+                    let c_value = self.value(&c) as u32;
+                    let result = (b_value + c_value) % 32768;
+
+                    self.registers.insert(a, result as u16);
+                    pc += 4;
+                }
                 // OUT
                 19 => {
                     let a = program[pc + 1];
@@ -123,7 +142,9 @@ impl VM {
                     pc += 2;
                 },
                 // NOOP
-                21 => (pc += 1),
+                21 => {
+                    pc += 1;
+                },
                 _ => {
                     panic!("Don't know how to interpret op code {}", op);
                 },
