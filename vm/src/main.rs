@@ -1,14 +1,34 @@
 use std::process;
-use std::collections::HashMap;
 
 struct VM {
-    registers: HashMap<u16, u16>,
+    registers: [u16; 8],
+    memory: [u16; 32_768],
     stack: Vec<u16>,
 }
 
 impl VM {
+    fn new() -> VM {
+        VM {
+            registers: [0; 8],
+            memory: [0; 32_768],
+            stack: Vec::new(),
+        }
+    }
+
     fn is_literal(n: &u16) -> bool {
-        n >= &0 && n <= &32767
+        n >= &0 && n <= &32_767
+    }
+
+    fn is_register(n: &u16) -> bool {
+        n >= &32_768 && n <= &32_775
+    }
+
+    fn read_register(&self, register: &u16) -> u16 {
+        self.registers[(register - 32_768) as usize]
+    }
+
+    fn write_register(&mut self, register: &u16, value: u16) {
+        self.registers[(register - 32_768) as usize] = value;
     }
 
     fn value(&self, n: &u16) -> u16 {
@@ -16,60 +36,73 @@ impl VM {
             return *n;
         }
 
-        match self.registers.get(n) {
-            Some(n) => *n,
-            None => 0,
+        if VM::is_register(n) {
+            return self.read_register(n);
         }
+
+        panic!("Invalid number: {}", n);
+    }
+
+    fn read_memory(&self, address: &u16) -> u16 {
+        self.memory[*address as usize]
+    }
+
+    fn write_memory(&mut self, address: &u16, value: u16) {
+        self.memory[*address as usize] = value;
+    }
+
+    fn load_into_memory(&mut self, binary: &[u8]) {
+        binary
+            .chunks(2)
+            .map(|le_pair| le_pair[0] as u16 | ((le_pair[1] as u16) << 8))
+            .enumerate()
+            .for_each(|(address, value)| {
+                self.memory[address as usize] = value;
+            });
     }
 
     fn interpret(&mut self, binary: &[u8]) {
-        let program: Vec<u16> = binary
-            .chunks(2)
-            .map(|le_pair| {
-                let low_byte = le_pair[0];
-                let high_byte = le_pair[1];
-
-                ((low_byte as u16) << 0) | ((high_byte as u16) << 8)
-            }).collect();
+        self.load_into_memory(binary);
 
         // Start at address 0
-        let mut pc = 0;
+        let mut pc: u16 = 0;
 
         loop {
-            let op = program[pc];
+            let op = self.read_memory(&pc);
 
             match op {
                 // HALT
                 0 => process::exit(0),
-                // SET
+                // SET a b
                 1 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
                     let value = self.value(&b);
 
-                    self.registers.insert(a, value);
+                    self.write_register(&a, value);
                     pc += 3;
                 }
-                // PUSH
+                // PUSH a
                 2 => {
-                    let a = program[pc + 1];
+                    let a = self.read_memory(&(pc + 1));
                     let value = self.value(&a);
                     self.stack.push(value);
                     pc += 2
                 }
-                // POP
+                // POP a
                 3 => {
-                    let a = program[pc + 1];
-                    let value = self.stack.pop().unwrap();
+                    let a = self.read_memory(&(pc + 1));
+                    let value = self.stack.pop()
+                        .expect("Attempted to POP empty stack");
 
-                    self.registers.insert(a, value);
+                    self.write_register(&a, value);
                     pc += 2
                 }
-                // EQ
+                // EQ a b c
                 4 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
-                    let c = program[pc + 3];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
 
                     let value = if self.value(&b) == self.value(&c) {
                         1
@@ -77,14 +110,14 @@ impl VM {
                         0
                     };
 
-                    self.registers.insert(a, value);
+                    self.write_register(&a, value);
                     pc += 4
                 }
-                // GT
+                // GT a b c
                 5 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
-                    let c = program[pc + 3];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
 
                     let value = if self.value(&b) > self.value(&c) {
                         1
@@ -92,87 +125,145 @@ impl VM {
                         0
                     };
 
-                    self.registers.insert(a, value);
+                    self.write_register(&a, value);
                     pc += 4
                 }
-                // JMP
+                // JMP a
                 6 => {
-                    let a = program[pc + 1];
-                    pc = self.value(&a) as usize;
+                    let a = self.read_memory(&(pc + 1));
+                    pc = self.value(&a);
                 }
-                // JT
+                // JT a b
                 7 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
 
                     if self.value(&a) == 0 {
                         pc += 3;
                     } else {
-                        pc = self.value(&b) as usize;
+                        pc = self.value(&b);
                     }
                 }
-                // JF
+                // JF a b
                 8 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
 
                     if self.value(&a) == 0 {
-                        pc = self.value(&b) as usize;
+                        pc = self.value(&b);
                     } else {
                         pc += 3;
                     }
                 }
-                // ADD
+                // ADD a b c
                 9 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
-                    let c = program[pc + 3];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
 
-                    let b_value = self.value(&b) as u32;
-                    let c_value = self.value(&c) as u32;
-                    let result = (b_value + c_value) % 32768;
+                    let b_value = self.value(&b);
+                    let c_value = self.value(&c);
+                    let result = (b_value.wrapping_add(c_value)) % 32768;
 
-                    self.registers.insert(a, result as u16);
+                    self.write_register(&a, result);
                     pc += 4;
                 }
-                // AND
+                // MULT a b c
+                10 => {
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
+
+                    let b_value = self.value(&b);
+                    let c_value = self.value(&c);
+                    let result = (b_value.wrapping_mul(c_value)) % 32768;
+
+                    self.write_register(&a, result);
+                    pc += 4;
+                }
+                // MOD a b c
+                11 => {
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
+
+                    let b_value = self.value(&b);
+                    let c_value = self.value(&c);
+                    let result = b_value % c_value;
+
+                    self.write_register(&a, result);
+                    pc += 4;
+                }
+                // AND a b c
                 12 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
-                    let c = program[pc + 3];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
 
                     let b_value = self.value(&b);
                     let c_value = self.value(&c);
                     let result = b_value & c_value;
 
-                    self.registers.insert(a, result);
+                    self.write_register(&a, result);
                     pc += 4;
                 }
-                // OR
+                // OR a b c
                 13 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
-                    let c = program[pc + 3];
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+                    let c = self.read_memory(&(pc + 3));
 
                     let b_value = self.value(&b);
                     let c_value = self.value(&c);
                     let result = b_value | c_value;
 
-                    self.registers.insert(a, result);
+                    self.write_register(&a, result);
                     pc += 4;
                 }
-                // NOT
+                // NOT a b
                 14 => {
-                    let a = program[pc + 1];
-                    let b = program[pc + 2];
-                    let result = !b;
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
 
-                    self.registers.insert(a, result);
+                    // Only flip the last 15 bits. There's probably a prettier way to do this...
+                    let result = b ^ 0b_0111_1111_1111_1111_u16;
+
+                    self.write_register(&a, result);
                     pc += 3;
                 }
-                // OUT
+                // RMEM a b
+                15 => {
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+
+                    // let address = self.value(&b);
+                    // let value = self.read_memory(&address);
+                    // self.write_register(&a, value);
+                    pc += 3;
+                }
+                // WMEM a b
+                16 => {
+                    let a = self.read_memory(&(pc + 1));
+                    let b = self.read_memory(&(pc + 2));
+
+                    let address = self.value(&a);
+                    let value = self.value(&b);
+                    self.write_memory(&address, value);
+                    pc += 3;
+                }
+                // CALL a
+                17 => {
+                    let a = self.read_memory(&(pc + 1));
+                    self.stack.push(pc + 2);
+                    pc = self.value(&a);
+                }
+                // RET
+                18 => {
+                    pc = self.stack.pop().unwrap();
+                }
+                // OUT a
                 19 => {
-                    let a = program[pc + 1];
+                    let a = self.read_memory(&(pc + 1));
                     print!("{}", self.value(&a) as u8 as char);
                     pc += 2;
                 },
@@ -191,10 +282,6 @@ impl VM {
 fn main() {
     let binary = include_bytes!("../../challenge.bin");
 
-    let mut vm = VM {
-        registers: HashMap::new(),
-        stack: Vec::new(),
-    };
-
+    let mut vm = VM::new();
     vm.interpret(binary);
 }
