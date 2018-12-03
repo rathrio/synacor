@@ -135,6 +135,41 @@ impl VM {
                     self.registers.insert(a, result as u16);
                     pc += 4;
                 }
+                // AND
+                12 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let c = program[pc + 3];
+
+                    let b_value = self.value(&b);
+                    let c_value = self.value(&c);
+                    let result = b_value & c_value;
+
+                    self.registers.insert(a, result);
+                    pc += 4;
+                }
+                // OR
+                13 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let c = program[pc + 3];
+
+                    let b_value = self.value(&b);
+                    let c_value = self.value(&c);
+                    let result = b_value | c_value;
+
+                    self.registers.insert(a, result);
+                    pc += 4;
+                }
+                // NOT
+                14 => {
+                    let a = program[pc + 1];
+                    let b = program[pc + 2];
+                    let result = !b;
+
+                    self.registers.insert(a, result);
+                    pc += 3;
+                }
                 // OUT
                 19 => {
                     let a = program[pc + 1];
