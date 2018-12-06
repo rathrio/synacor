@@ -92,8 +92,7 @@ impl VM {
                 // POP a
                 3 => {
                     let a = self.read_memory(&(pc + 1));
-                    let value = self.stack.pop()
-                        .expect("Attempted to POP empty stack");
+                    let value = self.stack.pop().expect("Attempted to POP empty stack");
 
                     self.write_register(&a, value);
                     pc += 2
@@ -266,14 +265,14 @@ impl VM {
                     let a = self.read_memory(&(pc + 1));
                     print!("{}", self.value(&a) as u8 as char);
                     pc += 2;
-                },
+                }
                 // NOOP
                 21 => {
                     pc += 1;
-                },
+                }
                 _ => {
                     panic!("Don't know how to interpret op code {}", op);
-                },
+                }
             }
         }
     }
