@@ -236,9 +236,9 @@ impl VM {
                     let a = self.read_memory(&(pc + 1));
                     let b = self.read_memory(&(pc + 2));
 
-                    // let address = self.value(&b);
-                    // let value = self.read_memory(&address);
-                    // self.write_register(&a, value);
+                    let address = self.value(&b);
+                    let value = self.read_memory(&address);
+                    self.write_register(&a, value);
                     pc += 3;
                 }
                 // WMEM a b
