@@ -1,16 +1,19 @@
 use std::process;
 
+const NUM_REGISTERS: usize = 8;
+const ADDRESS_SPACE: usize = 32_768;
+
 struct VM {
-    registers: [u16; 8],
-    memory: [u16; 32_768],
+    registers: [u16; NUM_REGISTERS],
+    memory: [u16; ADDRESS_SPACE],
     stack: Vec<u16>,
 }
 
 impl VM {
     fn new() -> VM {
         VM {
-            registers: [0; 8],
-            memory: [0; 32_768],
+            registers: [0; NUM_REGISTERS],
+            memory: [0; ADDRESS_SPACE],
             stack: Vec::new(),
         }
     }
