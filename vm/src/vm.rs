@@ -1,7 +1,7 @@
 use std::process;
 
 const NUM_REGISTERS: usize = 8;
-const ADDRESS_SPACE: usize = 32_768;
+const ADDRESS_SPACE: usize = 32_767;
 
 pub struct VM {
     registers: [u16; NUM_REGISTERS],
@@ -72,6 +72,7 @@ impl VM {
 
         loop {
             let op = self.read_memory(pc);
+            // println!("PC: {} OP: {} R1: {:#018b}, R2: {:#018b}, R3: {:#018b}", pc, op, self.registers[0], self.registers[1], self.registers[2]);
 
             match op {
                 // HALT
@@ -220,7 +221,8 @@ impl VM {
                     let b = self.read_memory(pc + 2);
 
                     // Only flip the last 15 bits. There's probably a prettier way to do this...
-                    let result = b ^ 0b_0111_1111_1111_1111_u16;
+                    // let result = b ^ 0b_0111_1111_1111_1111_u16;
+                    let result = b ^ 0x7fff;
 
                     self.write_register(a, result);
                     pc += 3;
